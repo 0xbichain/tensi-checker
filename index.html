@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cek Tekanan Darah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+  <div class="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-md relative">
+    <h1 class="text-2xl font-bold text-primary mb-4">Cek Tekanan Darah</h1>
+
+    <form id="formTensi" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium">Sistolik (atas)</label>
+        <input type="number" id="sistolik" required class="w-full mt-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white"/>
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Diastolik (bawah)</label>
+        <input type="number" id="diastolik" required class="w-full mt-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white"/>
+      </div>
+      <button type="submit" class="w-full bg-primary text-white py-2 rounded-xl hover:bg-blue-700 transition">Cek Hasil</button>
+    </form>
+
+    <div id="hasil" class="mt-6 text-center text-lg font-bold"></div>
+    <div id="detail" class="mt-2 text-center text-sm text-gray-300"></div>
+
+    <div class="mt-6">
+      <div class="flex justify-between items-center">
+        <h2 class="font-semibold text-white">Riwayat</h2>
+        <button id="hapusRiwayat" class="text-red-400 text-sm hover:underline">Hapus Riwayat</button>
+      </div>
+      <ul id="riwayatList" class="text-sm mt-2 space-y-1 max-h-40 overflow-y-auto text-gray-200"></ul>
+    </div>
+
+    <!-- Modal konfirmasi -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50">
+      <div class="bg-gray-800 p-6 rounded-xl text-center shadow-xl w-80">
+        <h3 class="text-lg font-semibold mb-4 text-white">Hapus semua riwayat?</h3>
+        <div class="flex justify-center space-x-4">
+          <button id="btnBatal" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500">Batal</button>
+          <button id="btnYa" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Ya, Hapus</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('formTensi');
+    const hasil = document.getElementById('hasil');
+    const detail = document.getElementById('detail');
+    const riwayatList = document.getElementById('riwayatList');
+    const hapusRiwayat = document.getElementById('hapusRiwayat');
+    const modal = document.getElementById('modal');
+    const btnYa = document.getElementById('btnYa');
+    const btnBatal = document.getElementById('btnBatal');
+
+    let riwayat = JSON.parse(localStorage.getItem('riwayatTensi')) || [];
+
+    function klasifikasiTekanan(s, d) {
+      // Pengecekan untuk Sistolik dan Diastolik
+      let sStatus = '';
+      let dStatus = '';
+
+      // Sistolik
+      if (s < 90) {
+        sStatus = 'Rendah';
+      } else if (s >= 90 && s <= 120) {
+        sStatus = 'Normal';
+      } else if (s >= 121 && s <= 139) {
+        sStatus = 'Pra-hipertensi';
+      } else if (s >= 140 && s <= 159) {
+        sStatus = 'Hipertensi Stage 1';
+      } else {
+        sStatus = 'Hipertensi Stage 2';
+      }
+
+      // Diastolik
+      if (d < 60) {
+        dStatus = 'Rendah';
+      } else if (d >= 60 && d <= 80) {
+        dStatus = 'Normal';
+      } else if (d >= 81 && d <= 89) {
+        dStatus = 'Pra-hipertensi';
+      } else if (d >= 90 && d <= 99) {
+        dStatus = 'Hipertensi Stage 1';
+      } else {
+        dStatus = 'Hipertensi Stage 2';
+      }
+
+      // Menentukan status akhir berdasarkan yang lebih parah
+      let final = '';
+      if (sStatus === 'Hipertensi Stage 2' || dStatus === 'Hipertensi Stage 2') {
+        final = 'Hipertensi Stage 2';
+      } else if (sStatus === 'Hipertensi Stage 1' || dStatus === 'Hipertensi Stage 1') {
+        final = 'Hipertensi Stage 1';
+      } else if (sStatus === 'Pra-hipertensi' || dStatus === 'Pra-hipertensi') {
+        final = 'Pra-hipertensi';
+      } else if (sStatus === 'Normal' && dStatus === 'Normal') {
+        final = 'Normal';
+      } else {
+        final = 'Rendah';
+      }
+
+      return { final, detail: `Sistolik: ${sStatus}, Diastolik: ${dStatus}` };
+    }
+
+    function renderRiwayat() {
+      riwayatList.innerHTML = riwayat.map(item => `<li class="border-b border-gray-700 py-1">${item}</li>`).join('');
+    }
+
+    function updateRiwayat(s, d, final, det) {
+      const waktu = new Date().toLocaleString();
+      const data = `${waktu} — ${s}/${d} → ${final} (${det})`;
+      riwayat.unshift(data);
+      localStorage.setItem('riwayatTensi', JSON.stringify(riwayat));
+      renderRiwayat();
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const s = parseInt(document.getElementById('sistolik').value);
+      const d = parseInt(document.getElementById('diastolik').value);
+      const { final, detail: det } = klasifikasiTekanan(s, d);
+
+      hasil.textContent = `Kategori: ${final}`;
+      hasil.className = `mt-6 text-center text-lg font-bold ${
+        final === 'Normal' ? 'text-green-400' : final === 'Rendah' ? 'text-yellow-400' : 'text-red-400'
+      }`;
+      detail.textContent = det;
+
+      updateRiwayat(s, d, final, det);
+    });
+
+    hapusRiwayat.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    });
+
+    btnBatal.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+
+    btnYa.addEventListener('click', () => {
+      riwayat = [];
+      localStorage.removeItem('riwayatTensi');
+      renderRiwayat();
+      modal.classList.add('hidden');
+    });
+
+    // Init
+    renderRiwayat();
+  </script>
+</body>
+</html>
